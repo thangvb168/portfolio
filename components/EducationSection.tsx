@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { motion } from 'motion/react'
-import { GraduationCap, Trophy } from '@phosphor-icons/react'
+import { motion } from "motion/react";
+import { GraduationCap, Trophy } from "@phosphor-icons/react";
 
 export function EducationSection() {
   return (
@@ -21,7 +21,11 @@ export function EducationSection() {
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] as number[] }}
+          transition={{
+            duration: 0.6,
+            delay: 0.1,
+            ease: [0.16, 1, 0.3, 1] as number[],
+          }}
           className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 p-6 md:p-8 rounded-xl border border-zinc-800 bg-zinc-950/40"
         >
           {/* Degree info */}
@@ -59,8 +63,9 @@ export function EducationSection() {
                   Thesis
                 </p>
                 <p className="text-sm text-zinc-400 leading-relaxed max-w-[60ch]">
-                  Applying Integrative Compositional Zero-shot Learning for rare agricultural
-                  product recognition and pathogen status prediction.
+                  Applying Integrative Compositional Zero-shot Learning for rare
+                  agricultural product recognition and pathogen status
+                  prediction.
                 </p>
               </div>
             </div>
@@ -69,10 +74,10 @@ export function EducationSection() {
           {/* Stats sidebar */}
           <div className="lg:col-span-5 grid grid-cols-2 gap-4">
             {[
-              { value: '3.82', label: 'GPA', sub: 'out of 4.0' },
-              { value: '4 yr', label: 'Program', sub: 'Computer Science' },
-              { value: '640', label: 'TOEIC', sub: 'English proficiency' },
-              { value: '2025', label: 'Graduated', sub: 'Excellent standing' },
+              { value: "3.82", label: "GPA", sub: "out of 4.0" },
+              { value: "4 yr", label: "Program", sub: "Computer Science" },
+              { value: "640", label: "TOEIC", sub: "English proficiency" },
+              { value: "2025", label: "Graduated", sub: "Excellent standing" },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -81,7 +86,9 @@ export function EducationSection() {
                 <p className="text-2xl font-bold text-zinc-100 font-mono tabular-nums">
                   {stat.value}
                 </p>
-                <p className="text-xs font-medium text-zinc-300 mt-1">{stat.label}</p>
+                <p className="text-xs font-medium text-zinc-300 mt-1">
+                  {stat.label}
+                </p>
                 <p className="text-xs text-zinc-600 mt-0.5">{stat.sub}</p>
               </div>
             ))}
@@ -89,5 +96,5 @@ export function EducationSection() {
         </motion.div>
       </div>
     </section>
-  )
+  );
 }

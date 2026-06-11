@@ -1,26 +1,26 @@
-'use client'
+"use client";
 
-import { useRef, useEffect, useState } from 'react'
-import { motion, useInView, animate } from 'motion/react'
+import { useRef, useEffect, useState } from "react";
+import { motion, useInView, animate } from "motion/react";
 
-const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
+const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number];
 
 function AnimatedStat() {
-  const ref = useRef<HTMLDivElement>(null)
-  const isInView = useInView(ref, { once: true, amount: 0.6 })
-  const [count, setCount] = useState(0)
-  const [done, setDone] = useState(false)
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, amount: 0.6 });
+  const [count, setCount] = useState(0);
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
-    if (!isInView) return
+    if (!isInView) return;
     const controls = animate(0 as number, 60, {
       duration: 1.5,
       ease: EASE,
       onUpdate: (v) => setCount(Math.round(v)),
       onComplete: () => setDone(true),
-    })
-    return () => controls.stop()
-  }, [isInView])
+    });
+    return () => controls.stop();
+  }, [isInView]);
 
   return (
     <div ref={ref}>
@@ -43,25 +43,23 @@ function AnimatedStat() {
         />
       </div>
     </div>
-  )
+  );
 }
 
 const stackItems = [
-  { label: 'backend', value: 'NestJS / Express.js' },
-  { label: 'frontend', value: 'React / Next.js' },
-  { label: 'real-time', value: 'Socket.io + Redis' },
-  { label: 'direction', value: 'Solution Architect', accent: true },
-]
+  { label: "backend", value: "NestJS / Express.js" },
+  { label: "frontend", value: "React / Next.js" },
+  { label: "real-time", value: "Socket.io + Redis" },
+  { label: "direction", value: "Solution Architect", accent: true },
+];
 
 export function AboutSection() {
   return (
     <section id="about" className="bg-zinc-900 py-24 md:py-32">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
-
           {/* Left: Prose */}
           <div className="lg:col-span-7 flex flex-col gap-6">
-
             <motion.h2
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -79,8 +77,8 @@ export function AboutSection() {
               transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
               className="text-lg md:text-xl text-zinc-200 font-medium leading-relaxed max-w-[55ch] border-l-2 border-cyan-400/30 pl-4"
             >
-              Two years building production systems: CRM, HRM, LMS, and real-time applications
-              across product and outsource environments.
+              Two years building production systems: CRM, HRM, LMS, and
+              real-time applications across product and outsource environments.
             </motion.p>
 
             <motion.p
@@ -90,10 +88,11 @@ export function AboutSection() {
               transition={{ duration: 0.6, delay: 0.2, ease: EASE }}
               className="text-zinc-400 leading-relaxed text-base max-w-[65ch]"
             >
-              Started on the backend side with Node.js and Express, then grew into fullstack
-              with NestJS on the server and React / Next.js on the client. What drives me is
-              how systems are designed: database schema, API contracts, data flow from UI
-              through server to storage.
+              Started on the backend side with Node.js and Express, then grew
+              into fullstack with NestJS on the server and React / Next.js on
+              the client. What drives me is how systems are designed: database
+              schema, API contracts, data flow from UI through server to
+              storage.
             </motion.p>
 
             <motion.p
@@ -103,11 +102,12 @@ export function AboutSection() {
               transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
               className="text-zinc-400 leading-relaxed text-base max-w-[65ch]"
             >
-              Near-term: scalable architecture design, performance optimization, distributed
-              systems (caching strategy, message queues, search infrastructure) and contributing
-              to core architecture decisions. Long-term: Solution Architect, turning business
-              requirements into holistic system designs that balance performance, cost,
-              and scalability.
+              Near-term: scalable architecture design, performance optimization,
+              distributed systems (caching strategy, message queues, search
+              infrastructure) and contributing to core architecture decisions.
+              Long-term: Solution Architect, turning business requirements into
+              holistic system designs that balance performance, cost, and
+              scalability.
             </motion.p>
 
             <motion.div
@@ -137,7 +137,6 @@ export function AboutSection() {
 
           {/* Right: Achievement + stack snapshot */}
           <div className="lg:col-span-5 flex flex-col gap-4">
-
             {/* Key achievement - dominant stat */}
             <motion.div
               initial={{ opacity: 0, x: 40, scale: 0.96 }}
@@ -154,7 +153,8 @@ export function AboutSection() {
                 <AnimatedStat />
 
                 <p className="text-base text-zinc-200 mt-5 leading-relaxed">
-                  reduction in CRUD form development time via AI Agent SKILL and Workflow system.
+                  reduction in CRUD form development time via AI Agent SKILL and
+                  Workflow system.
                 </p>
                 <p className="text-sm text-zinc-500 mt-2">
                   Built at VFM Technology, 2025
@@ -162,8 +162,9 @@ export function AboutSection() {
               </div>
 
               <p className="text-xs text-zinc-600 leading-relaxed mt-6 pt-5 border-t border-cyan-400/10">
-                Standardizing the architecture across all modules showed the leverage of
-                solving the system problem rather than each feature problem individually.
+                Standardizing the architecture across all modules showed the
+                leverage of solving the system problem rather than each feature
+                problem individually.
               </p>
             </motion.div>
 
@@ -176,21 +177,27 @@ export function AboutSection() {
                     initial={{ opacity: 0, x: 16 }}
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: true, amount: 0.5 }}
-                    transition={{ duration: 0.45, delay: 0.28 + i * 0.08, ease: EASE }}
+                    transition={{
+                      duration: 0.45,
+                      delay: 0.28 + i * 0.08,
+                      ease: EASE,
+                    }}
                   >
-                    <p className="text-xs font-mono text-zinc-600 mb-1">{item.label}</p>
-                    <p className={`text-sm font-medium ${item.accent ? 'text-cyan-400/80' : 'text-zinc-300'}`}>
+                    <p className="text-xs font-mono text-zinc-600 mb-1">
+                      {item.label}
+                    </p>
+                    <p
+                      className={`text-sm font-medium ${item.accent ? "text-cyan-400/80" : "text-zinc-300"}`}
+                    >
                       {item.value}
                     </p>
                   </motion.div>
                 ))}
               </div>
             </div>
-
           </div>
-
         </div>
       </div>
     </section>
-  )
+  );
 }
