@@ -56,7 +56,7 @@ html {
   }
 }
 
-/* Terminal scroll inside 3D monitor */
+/* Terminal / dashboard scroll inside 3D left monitor */
 @keyframes term-scroll {
   from {
     transform: translateY(0);
@@ -67,11 +67,26 @@ html {
 }
 
 .term-scroll {
-  animation: term-scroll 22s linear infinite;
+  animation: term-scroll 24s linear infinite;
+}
+
+/* Code scroll inside 3D right monitor */
+@keyframes code-scroll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+.code-scroll {
+  animation: code-scroll 30s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .term-scroll {
+  .term-scroll,
+  .code-scroll {
     animation: none;
   }
 }
