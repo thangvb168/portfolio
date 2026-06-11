@@ -35,3 +35,43 @@ html {
     linear-gradient(to bottom, rgb(255 255 255 / 0.025) 1px, transparent 1px);
   background-size: 40px 40px;
 }
+
+/* Skill marquee */
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee-scroll 40s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+}
+
+/* Terminal scroll inside 3D monitor */
+@keyframes term-scroll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+.term-scroll {
+  animation: term-scroll 22s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-scroll {
+    animation: none;
+  }
+}

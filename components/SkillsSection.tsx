@@ -1,37 +1,81 @@
-'use client'
+"use client";
 
-import { motion } from 'motion/react'
+import { motion } from "motion/react";
 
 const layers = [
   {
-    label: 'Frontend',
-    tags: ['ReactJS', 'NextJS', 'TailwindCSS', 'Ant Design', 'Zustand', 'React Hook Form', 'Zod'],
+    label: "Frontend",
+    tags: [
+      "ReactJS",
+      "NextJS",
+      "TailwindCSS",
+      "Ant Design",
+      "Zustand",
+      "React Hook Form",
+      "Zod",
+    ],
   },
   {
-    label: 'Backend',
-    tags: ['NestJS', 'Express.js', 'Node.js', 'RESTful API design', 'JWT'],
+    label: "Backend",
+    tags: ["NestJS", "Express.js", "Node.js", "RESTful API design", "JWT"],
   },
   {
-    label: 'Database + Cache',
-    tags: ['PostgreSQL', 'MongoDB', 'Redis'],
+    label: "Database + Cache",
+    tags: ["PostgreSQL", "MongoDB", "Redis"],
   },
   {
-    label: 'Real-time + Messaging',
-    tags: ['Socket.io', 'RabbitMQ', 'Firebase'],
+    label: "Real-time + Messaging",
+    tags: ["Socket.io", "RabbitMQ", "Firebase"],
   },
   {
-    label: 'Search + Infra',
-    tags: ['Elasticsearch', 'Docker', 'Git', 'Cloudinary'],
+    label: "Search + Infra",
+    tags: ["Elasticsearch", "Docker", "Git", "Cloudinary"],
   },
   {
-    label: 'Languages',
-    tags: ['TypeScript', 'JavaScript'],
+    label: "Languages",
+    tags: ["TypeScript", "JavaScript"],
   },
-]
+];
+
+const marqueeSkills = [
+  "NestJS",
+  "PostgreSQL",
+  "Redis",
+  "Socket.io",
+  "RabbitMQ",
+  "Elasticsearch",
+  "Docker",
+  "TypeScript",
+  "ReactJS",
+  "Next.js",
+  "MongoDB",
+  "Express.js",
+  "Zod",
+  "TailwindCSS",
+  "JWT",
+  "Git",
+];
+
+// Duplicate for seamless loop
+const doubled = [...marqueeSkills, ...marqueeSkills];
 
 export function SkillsSection() {
   return (
     <section id="skills" className="bg-zinc-950 py-24 md:py-32">
+      {/* Marquee strip */}
+      <div className="overflow-hidden border-t border-b border-zinc-800/60 py-4 mb-20">
+        <div className="animate-marquee flex gap-3 w-max">
+          {doubled.map((skill, i) => (
+            <span
+              key={i}
+              className="font-mono text-sm text-zinc-400 bg-zinc-900/70 border border-zinc-800 rounded-full px-4 py-1.5 whitespace-nowrap shrink-0"
+            >
+              {skill}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -84,10 +128,11 @@ export function SkillsSection() {
           className="mt-10 pt-6 border-t border-zinc-800/60"
         >
           <p className="text-sm text-zinc-500">
-            English: TOEIC 640 - comfortable reading technical documentation and communicating in engineering contexts.
+            English: TOEIC 640 - comfortable reading technical documentation and
+            communicating in engineering contexts.
           </p>
         </motion.div>
       </div>
     </section>
-  )
+  );
 }

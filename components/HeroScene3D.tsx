@@ -1,371 +1,574 @@
-'use client'
+"use client";
 
-import { useEffect, useRef } from 'react'
-import * as THREE from 'three'
+import { Suspense, useRef } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls, Html } from "@react-three/drei";
+import * as THREE from "three";
 
-// ─── Scene data ───────────────────────────────────────────────────────────────
+// ── Terminal log lines ────────────────────────────────────────────────────────
+const TERM_LINES = [
+  "$ docker compose up -d",
+  "[nginx]     ✓ running",
+  "[postgres]  ✓ running",
+  "[redis]     ✓ running",
+  "$ nest start --watch",
+  "[NestJS] Starting application...",
+  "[DB] Connected to PostgreSQL",
+  "[Redis] Connected :6379",
+  "[Queue] Worker initialized",
+  "[Server] Listening :3000",
+  "GET  /api/users        200  11ms",
+  "POST /api/auth/login   200  43ms",
+  "GET  /api/courses      200   8ms",
+  "$ pg_dump mydb > bak.sql",
+  "[pg] Backup complete 48MB",
+  "$ redis-cli info replication",
+  "role:master connected_slaves:2",
+  "$ npm run test:unit",
+  "PASS auth.service.spec.ts",
+  "PASS user.service.spec.ts",
+  "Tests: 47 passed, 0 failed",
+  "$ git push origin main",
+  "Everything up-to-date",
+];
+const TERM_DOUBLED = [...TERM_LINES, ...TERM_LINES];
 
-type Tier = 0 | 1 | 2
+// ── Book data (deterministic, no Math.random) ─────────────────────────────────
+const BOOKS: [number, number, string][][] = [
+  [
+    [0.044, 0.19, "#dc2626"],
+    [0.036, 0.22, "#2563eb"],
+    [0.05, 0.16, "#16a34a"],
+    [0.04, 0.21, "#d97706"],
+    [0.046, 0.18, "#0891b2"],
+    [0.034, 0.23, "#7c3aed"],
+    [0.042, 0.17, "#db2777"],
+    [0.048, 0.2, "#0d9488"],
+    [0.038, 0.19, "#ea580c"],
+  ],
+  [
+    [0.04, 0.2, "#7c3aed"],
+    [0.05, 0.17, "#0891b2"],
+    [0.036, 0.22, "#dc2626"],
+    [0.044, 0.18, "#16a34a"],
+    [0.038, 0.21, "#d97706"],
+    [0.046, 0.16, "#db2777"],
+    [0.042, 0.23, "#2563eb"],
+    [0.034, 0.19, "#059669"],
+  ],
+  [
+    [0.048, 0.18, "#2563eb"],
+    [0.038, 0.21, "#dc2626"],
+    [0.044, 0.17, "#d97706"],
+    [0.036, 0.22, "#0891b2"],
+    [0.05, 0.19, "#16a34a"],
+    [0.04, 0.2, "#7c3aed"],
+    [0.042, 0.16, "#ea580c"],
+    [0.034, 0.23, "#0d9488"],
+    [0.046, 0.18, "#db2777"],
+  ],
+];
 
-interface NodeDef {
-  id: string
-  label: string
-  pos: [number, number, number]
-  size: number
-  tier: Tier
-}
-
-const NODES: NodeDef[] = [
-  { id: 'hub', label: 'API Gateway',     pos: [0, 0, 0],          size: 0.22, tier: 0 },
-  { id: 'n1',  label: 'Auth Service',    pos: [-1.8, 1.2, 0.3],   size: 0.14, tier: 1 },
-  { id: 'n2',  label: 'Business Logic',  pos: [1.5, 1.0, -0.4],   size: 0.14, tier: 1 },
-  { id: 'n3',  label: 'Notifications',   pos: [1.8, -0.8, 0.6],   size: 0.14, tier: 1 },
-  { id: 'n4',  label: 'Data Service',    pos: [-1.2, -1.5, 0.2],  size: 0.14, tier: 1 },
-  { id: 'n5',  label: 'Redis Cache',     pos: [0.3, 1.9, -0.8],   size: 0.09, tier: 2 },
-  { id: 'n6',  label: 'PostgreSQL',      pos: [-0.7, -0.4, 1.6],  size: 0.09, tier: 2 },
-  { id: 'n7',  label: 'Elasticsearch',   pos: [0.6, -0.2, -1.8],  size: 0.09, tier: 2 },
-  { id: 'n8',  label: 'RabbitMQ',        pos: [-1.6, 0.5, -1.0],  size: 0.09, tier: 2 },
-]
-
-const EDGES: [number, number][] = [
-  [0, 1], [0, 2], [0, 3], [0, 4],
-  [1, 5], [1, 8],
-  [2, 5],
-  [3, 6], [3, 7],
-  [4, 6],
-]
-
-const PACKET_EDGES: [number, number][] = [[0, 1], [0, 2], [0, 3], [0, 4]]
-
-const TIER_CFG: Record<Tier, { color: number; emissive: number; ei: number }> = {
-  0: { color: 0x0e7490, emissive: 0x22d3ee, ei: 0.9 },
-  1: { color: 0x3f3f46, emissive: 0xa1a1aa, ei: 0.28 },
-  2: { color: 0x27272a, emissive: 0x717171, ei: 0.16 },
-}
-
-// Precompute adjacency list for selection highlighting
-const ADJACENCY: Set<number>[] = NODES.map(() => new Set<number>())
-EDGES.forEach(([a, b]) => {
-  ADJACENCY[a].add(b)
-  ADJACENCY[b].add(a)
-})
-
-const lerp = THREE.MathUtils.lerp
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export function HeroScene3D() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const tooltipRef   = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-
-    // ── Renderer ──────────────────────────────────────────────────────────────
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setSize(el.clientWidth, el.clientHeight)
-    el.appendChild(renderer.domElement)
-
-    // ── Scene + Camera ────────────────────────────────────────────────────────
-    const scene  = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(50, el.clientWidth / el.clientHeight, 0.1, 100)
-    camera.position.set(0, 0, 5)
-
-    // ── Lights ────────────────────────────────────────────────────────────────
-    scene.add(new THREE.AmbientLight(0xffffff, 0.55))
-    const keyLight = new THREE.PointLight(0x22d3ee, 4)
-    keyLight.position.set(3, 4, 2)
-    scene.add(keyLight)
-    const fillLight = new THREE.PointLight(0xa1a1aa, 1.8)
-    fillLight.position.set(-3, -2, -3)
-    scene.add(fillLight)
-
-    // ── Cluster group ─────────────────────────────────────────────────────────
-    const cluster = new THREE.Group()
-    scene.add(cluster)
-
-    // ── Nodes ─────────────────────────────────────────────────────────────────
-    const nodeMeshes: THREE.Mesh[] = []
-
-    NODES.forEach((n, idx) => {
-      const cfg  = TIER_CFG[n.tier]
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(n.size, 24, 24),
-        new THREE.MeshStandardMaterial({
-          color: cfg.color, emissive: cfg.emissive,
-          emissiveIntensity: cfg.ei, roughness: 0.25, metalness: 0.75,
-        })
-      )
-      mesh.position.set(...n.pos)
-      mesh.userData.idx = idx
-      cluster.add(mesh)
-      nodeMeshes.push(mesh)
-    })
-
-    // ── Edges (separate Line per edge for individual highlighting) ────────────
-    const edgeLines: THREE.Line[]                = []
-    const edgeMats:  THREE.LineBasicMaterial[]   = []
-    const edgeColors: THREE.Color[]              = EDGES.map(() => new THREE.Color(0x3f3f46))
-    const edgeOpacities: number[]                = EDGES.map(() => 0.45)
-    const colorDefault  = new THREE.Color(0x3f3f46)
-    const colorHighlight = new THREE.Color(0x22d3ee)
-
-    EDGES.forEach(([a, b]) => {
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(...NODES[a].pos),
-        new THREE.Vector3(...NODES[b].pos),
-      ])
-      const mat = new THREE.LineBasicMaterial({ color: 0x3f3f46, transparent: true, opacity: 0.45 })
-      const line = new THREE.Line(geo, mat)
-      cluster.add(line)
-      edgeLines.push(line)
-      edgeMats.push(mat)
-    })
-
-    // ── Packets ───────────────────────────────────────────────────────────────
-    const packetGeo = new THREE.SphereGeometry(0.024, 8, 8)
-
-    type Packet = { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; speed: number; offset: number }
-    const packets: Packet[] = []
-    const packetMats: THREE.MeshBasicMaterial[] = []
-
-    PACKET_EDGES.forEach(([a, b], ei) => {
-      ;[0, 0.34, 0.67].forEach((off) => {
-        const mat  = new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0 })
-        const mesh = new THREE.Mesh(packetGeo, mat)
-        cluster.add(mesh)
-        packets.push({ mesh, from: new THREE.Vector3(...NODES[a].pos), to: new THREE.Vector3(...NODES[b].pos), speed: 0.30 + ei * 0.035, offset: off + ei * 0.09 })
-        packetMats.push(mat)
-      })
-    })
-
-    // ── Per-node lerp state ───────────────────────────────────────────────────
-    const scales = NODES.map(() => 1)
-    const eis    = NODES.map((n) => TIER_CFG[n.tier].ei)
-
-    // ── Interaction state ─────────────────────────────────────────────────────
-    const mouse       = new THREE.Vector2(0, 0)
-    const camTarget   = new THREE.Vector3(0, 0, 5)
-    const tooltipVec  = new THREE.Vector3()
-    const raycaster   = new THREE.Raycaster()
-
-    let rotY = 0
-    let rotX = 0
-    let isDragging      = false
-    let pointerDownX    = 0
-    let pointerDownY    = 0
-    let lastPointerX    = 0
-    let lastPointerY    = 0
-    let lastInteraction = 0   // timestamp; auto-rotation resumes 3s after last drag
-    let selectedIdx     = -1
-    let hoveredIdx      = -1
-
-    // ── Pointer events ────────────────────────────────────────────────────────
-    const onPointerDown = (e: PointerEvent) => {
-      isDragging   = true
-      pointerDownX = lastPointerX = e.clientX
-      pointerDownY = lastPointerY = e.clientY
-      el.setPointerCapture(e.pointerId)
-    }
-
-    const onPointerMove = (e: PointerEvent) => {
-      // Always update mouse for hover + parallax
-      mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1
-      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1
-
-      if (!isDragging) return
-
-      const dx = e.clientX - lastPointerX
-      const dy = e.clientY - lastPointerY
-      lastPointerX = e.clientX
-      lastPointerY = e.clientY
-
-      rotY += dx * 0.008
-      rotX  = Math.max(-Math.PI / 3.5, Math.min(Math.PI / 3.5, rotX + dy * 0.008))
-      lastInteraction = performance.now()
-    }
-
-    const onPointerUp = (e: PointerEvent) => {
-      if (!isDragging) return
-      isDragging = false
-      lastInteraction = performance.now()
-
-      // Treat as a click if pointer barely moved
-      const dist = Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY)
-      if (dist < 6) {
-        scene.updateMatrixWorld()
-        raycaster.setFromCamera(mouse, camera)
-        const hits = raycaster.intersectObjects(nodeMeshes)
-        if (hits.length > 0) {
-          const idx = hits[0].object.userData.idx as number
-          selectedIdx = selectedIdx === idx ? -1 : idx   // toggle
-        } else {
-          selectedIdx = -1
-        }
-      }
-    }
-
-    el.addEventListener('pointerdown', onPointerDown)
-    el.addEventListener('pointermove', onPointerMove)
-    el.addEventListener('pointerup',   onPointerUp)
-    el.addEventListener('pointercancel', onPointerUp)
-
-    // ── Resize ────────────────────────────────────────────────────────────────
-    const onResize = () => {
-      camera.aspect = el.clientWidth / el.clientHeight
-      camera.updateProjectionMatrix()
-      renderer.setSize(el.clientWidth, el.clientHeight)
-    }
-    const ro = new ResizeObserver(onResize)
-    ro.observe(el)
-
-    // ── Animation loop ────────────────────────────────────────────────────────
-    const clock = new THREE.Clock()
-    let raf: number
-
-    const tick = () => {
-      raf = requestAnimationFrame(tick)
-      const t = clock.getElapsedTime()
-
-      // Auto-rotate when user is idle (3 s after last drag)
-      if (!isDragging && performance.now() - lastInteraction > 3000) {
-        rotY += 0.0012
-      }
-      cluster.rotation.y = rotY
-      cluster.rotation.x = rotX
-
-      // Camera: parallax when not dragging
-      if (!isDragging) {
-        camTarget.set(mouse.x * 0.65, mouse.y * 0.45, 5)
-        camera.position.lerp(camTarget, 0.022)
-        camera.lookAt(0, 0, 0)
-      }
-
-      // Raycasting for hover
-      scene.updateMatrixWorld()
-      raycaster.setFromCamera(mouse, camera)
-      const hits = raycaster.intersectObjects(nodeMeshes)
-      hoveredIdx = hits.length > 0 ? (hits[0].object.userData.idx as number) : -1
-
-      // Cursor
-      el.style.cursor = isDragging ? 'grabbing' : hoveredIdx !== -1 ? 'pointer' : 'grab'
-
-      // ── Node visual state ─────────────────────────────────────────────────
-      nodeMeshes.forEach((mesh, i) => {
-        const cfg = TIER_CFG[NODES[i].tier]
-        let targetScale = 1
-        let targetEI    = cfg.ei
-
-        if (selectedIdx !== -1) {
-          if (i === selectedIdx) {
-            targetScale = 1.55
-            targetEI    = cfg.ei * 4
-          } else if (ADJACENCY[selectedIdx].has(i)) {
-            targetScale = 1.1
-            targetEI    = cfg.ei * 1.6
-          } else {
-            targetScale = 0.88
-            targetEI    = cfg.ei * 0.25
-          }
-        } else if (hoveredIdx === i) {
-          targetScale = 1.45
-          targetEI    = cfg.ei * 3
-        }
-
-        scales[i] = lerp(scales[i], targetScale, 0.1)
-        eis[i]    = lerp(eis[i],    targetEI,    0.1)
-        mesh.scale.setScalar(scales[i])
-        ;(mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = eis[i]
-      })
-
-      // ── Edge visual state ─────────────────────────────────────────────────
-      EDGES.forEach(([a, b], i) => {
-        const mat = edgeMats[i]
-        let tgtOpacity = 0.45
-        let tgtColor   = colorDefault
-
-        if (selectedIdx !== -1) {
-          if (a === selectedIdx || b === selectedIdx) {
-            tgtOpacity = 0.95
-            tgtColor   = colorHighlight
-          } else {
-            tgtOpacity = 0.08
-          }
-        }
-
-        edgeOpacities[i] = lerp(edgeOpacities[i], tgtOpacity, 0.1)
-        mat.opacity       = edgeOpacities[i]
-        edgeColors[i].lerp(tgtColor, 0.1)
-        mat.color.copy(edgeColors[i])
-        mat.needsUpdate = true
-      })
-
-      // ── Packets ───────────────────────────────────────────────────────────
-      packets.forEach(({ mesh, from, to, speed, offset }) => {
-        const p = (t * speed + offset) % 1
-        mesh.position.lerpVectors(from, to, p)
-        ;(mesh.material as THREE.MeshBasicMaterial).opacity = Math.sin(p * Math.PI) * 0.95
-      })
-
-      // ── Tooltip ───────────────────────────────────────────────────────────
-      const tip = tooltipRef.current
-      if (tip) {
-        const showIdx = selectedIdx !== -1 ? selectedIdx : hoveredIdx
-        if (showIdx !== -1) {
-          tooltipVec.set(...NODES[showIdx].pos)
-          tooltipVec.applyMatrix4(cluster.matrixWorld)
-          tooltipVec.project(camera)
-          const x = (tooltipVec.x + 1)    * 0.5 * el.clientWidth
-          const y = -(tooltipVec.y - 1) * 0.5 * el.clientHeight
-          tip.style.left    = `${x}px`
-          tip.style.top     = `${y}px`
-          tip.textContent   = NODES[showIdx].label
-          tip.style.opacity = '1'
-        } else {
-          tip.style.opacity = '0'
-        }
-      }
-
-      renderer.render(scene, camera)
-    }
-    tick()
-
-    // ── Cleanup ───────────────────────────────────────────────────────────────
-    return () => {
-      cancelAnimationFrame(raf)
-      el.removeEventListener('pointerdown',  onPointerDown)
-      el.removeEventListener('pointermove',  onPointerMove)
-      el.removeEventListener('pointerup',    onPointerUp)
-      el.removeEventListener('pointercancel', onPointerUp)
-      ro.disconnect()
-
-      nodeMeshes.forEach((m) => {
-        m.geometry.dispose()
-        ;(m.material as THREE.Material).dispose()
-      })
-      edgeLines.forEach((l) => {
-        l.geometry.dispose()
-        ;(l.material as THREE.Material).dispose()
-      })
-      packetGeo.dispose()
-      packetMats.forEach((m) => m.dispose())
-      renderer.dispose()
-      if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement)
-    }
-  }, [])
+// ── Bookshelf ─────────────────────────────────────────────────────────────────
+function Bookshelf({ position }: { position: [number, number, number] }) {
+  const frame = "#1a1a1e";
+  const shelfY = [0.03, 0.52, 0.98, 1.44];
 
   return (
-    <div ref={containerRef} className="relative w-full h-full select-none">
-      {/* Floating service label tooltip */}
-      <div
-        ref={tooltipRef}
-        className="pointer-events-none absolute -translate-x-1/2 -translate-y-full -mt-2
-                   font-mono text-[11px] text-cyan-400 bg-zinc-950/85 border border-zinc-800
-                   rounded px-2 py-0.5 opacity-0 whitespace-nowrap transition-opacity duration-150"
-        style={{ left: 0, top: 0 }}
+    <group position={position}>
+      {/* Frame: left, right, top, bottom panels */}
+      <mesh position={[-0.42, 0.88, 0]}>
+        <boxGeometry args={[0.03, 1.76, 0.52]} />
+        <meshStandardMaterial color={frame} roughness={0.55} />
+      </mesh>
+      <mesh position={[0.42, 0.88, 0]}>
+        <boxGeometry args={[0.03, 1.76, 0.52]} />
+        <meshStandardMaterial color={frame} roughness={0.55} />
+      </mesh>
+      <mesh position={[0, 1.76, 0]}>
+        <boxGeometry args={[0.87, 0.03, 0.52]} />
+        <meshStandardMaterial color={frame} roughness={0.55} />
+      </mesh>
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[0.87, 0.03, 0.52]} />
+        <meshStandardMaterial color={frame} roughness={0.55} />
+      </mesh>
+      {/* Back panel */}
+      <mesh position={[0, 0.88, -0.245]}>
+        <boxGeometry args={[0.87, 1.76, 0.025]} />
+        <meshStandardMaterial color="#111118" roughness={0.7} />
+      </mesh>
+      {/* Horizontal shelves */}
+      {shelfY.map((y, i) => (
+        <mesh key={i} position={[0, y + 0.455, 0]}>
+          <boxGeometry args={[0.84, 0.025, 0.5]} />
+          <meshStandardMaterial color={frame} roughness={0.55} />
+        </mesh>
+      ))}
+      {/* Books on each shelf */}
+      {BOOKS.map((shelfBooks, si) => {
+        let x = -0.38;
+        return shelfBooks.map(([w, h, color], bi) => {
+          const cx = x + w / 2;
+          x += w + 0.006;
+          return (
+            <mesh
+              key={`${si}-${bi}`}
+              position={[cx, shelfY[si] + 0.015 + h / 2, 0]}
+            >
+              <boxGeometry args={[w, h, 0.42]} />
+              <meshStandardMaterial color={color} roughness={0.65} />
+            </mesh>
+          );
+        });
+      })}
+    </group>
+  );
+}
+
+// ── Desk lamp ─────────────────────────────────────────────────────────────────
+function DeskLamp({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* Base */}
+      <mesh position={[0, 0.018, 0]}>
+        <cylinderGeometry args={[0.065, 0.075, 0.036, 14]} />
+        <meshStandardMaterial color="#27272a" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Arm lower */}
+      <mesh position={[0, 0.22, 0]} rotation={[0.22, 0, 0]}>
+        <cylinderGeometry args={[0.01, 0.01, 0.38, 6]} />
+        <meshStandardMaterial color="#3f3f46" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Arm upper */}
+      <mesh position={[0, 0.44, -0.1]} rotation={[-0.3, 0, 0]}>
+        <cylinderGeometry args={[0.01, 0.01, 0.28, 6]} />
+        <meshStandardMaterial color="#3f3f46" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Shade */}
+      <mesh position={[0, 0.52, -0.18]} rotation={[Math.PI * 0.55, 0, 0]}>
+        <coneGeometry args={[0.075, 0.1, 16, 1, true]} />
+        <meshStandardMaterial
+          color="#d97706"
+          side={THREE.DoubleSide}
+          roughness={0.6}
+          metalness={0.1}
+        />
+      </mesh>
+      {/* Warm bulb glow */}
+      <pointLight
+        position={[0, 0.5, -0.18]}
+        color="#fde68a"
+        intensity={3.5}
+        distance={3.2}
+        decay={1.8}
       />
+    </group>
+  );
+}
+
+// ── Fan ───────────────────────────────────────────────────────────────────────
+function Fan({ position }: { position: [number, number, number] }) {
+  const bladesRef = useRef<THREE.Group>(null);
+
+  useFrame((_, dt) => {
+    if (bladesRef.current) bladesRef.current.rotation.z += dt * 4.5;
+  });
+
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.042, 0]}>
+        <cylinderGeometry args={[0.12, 0.14, 0.085, 12]} />
+        <meshStandardMaterial color="#27272a" roughness={0.5} metalness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.56, 0]}>
+        <cylinderGeometry args={[0.023, 0.023, 0.9, 8]} />
+        <meshStandardMaterial color="#3f3f46" metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 1.06, 0]}>
+        <cylinderGeometry args={[0.17, 0.17, 0.06, 16]} />
+        <meshStandardMaterial color="#27272a" roughness={0.4} metalness={0.4} />
+      </mesh>
+      <group ref={bladesRef} position={[0, 1.06, 0.04]}>
+        {[0, 1, 2, 3].map((i) => (
+          <mesh key={i} rotation={[0, 0, (Math.PI / 2) * i]}>
+            <boxGeometry args={[0.23, 0.038, 0.01]} />
+            <meshStandardMaterial
+              color="#52525b"
+              transparent
+              opacity={0.82}
+              metalness={0.5}
+              roughness={0.3}
+            />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+// ── Chair (click/hover to spin) ───────────────────────────────────────────────
+function Chair({ position }: { position: [number, number, number] }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const spinning = useRef(false);
+  const angle = useRef(0);
+
+  useFrame((_, dt) => {
+    if (!spinning.current || !groupRef.current) return;
+    angle.current += dt * 5;
+    groupRef.current.rotation.y = angle.current;
+    if (angle.current >= Math.PI * 2) {
+      angle.current = 0;
+      groupRef.current.rotation.y = 0;
+      spinning.current = false;
+    }
+  });
+
+  const start = () => {
+    if (!spinning.current) {
+      angle.current = 0;
+      spinning.current = true;
+    }
+  };
+
+  return (
+    <group
+      ref={groupRef}
+      position={position}
+      onClick={start}
+      onPointerEnter={start}
+    >
+      <mesh>
+        <boxGeometry args={[0.48, 0.052, 0.48]} />
+        <meshStandardMaterial color="#1c1c1e" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.32, -0.21]}>
+        <boxGeometry args={[0.48, 0.58, 0.052]} />
+        <meshStandardMaterial color="#1c1c1e" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, -0.26, 0]}>
+        <cylinderGeometry args={[0.027, 0.044, 0.44, 8]} />
+        <meshStandardMaterial color="#3f3f46" metalness={0.6} roughness={0.3} />
+      </mesh>
+      {[0, 72, 144, 216, 288].map((deg, i) => {
+        const a = (deg * Math.PI) / 180;
+        return (
+          <mesh
+            key={i}
+            position={[Math.sin(a) * 0.18, -0.47, Math.cos(a) * 0.18]}
+            rotation={[0, -a, 0]}
+          >
+            <boxGeometry args={[0.3, 0.02, 0.052]} />
+            <meshStandardMaterial
+              color="#3f3f46"
+              metalness={0.6}
+              roughness={0.3}
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+// ── Monitor with live terminal ────────────────────────────────────────────────
+function Monitor({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      <mesh>
+        <boxGeometry args={[0.26, 0.018, 0.16]} />
+        <meshStandardMaterial color="#18181b" metalness={0.5} roughness={0.4} />
+      </mesh>
+      <mesh position={[0, 0.19, 0]}>
+        <boxGeometry args={[0.036, 0.36, 0.036]} />
+        <meshStandardMaterial color="#27272a" metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.5, 0]} rotation={[-0.08, 0, 0]}>
+        <boxGeometry args={[0.86, 0.52, 0.026]} />
+        <meshStandardMaterial color="#18181b" metalness={0.4} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.5, 0.015]} rotation={[-0.08, 0, 0]}>
+        <boxGeometry args={[0.8, 0.46, 0.002]} />
+        <meshStandardMaterial
+          color="#07070e"
+          emissive="#083344"
+          emissiveIntensity={0.8}
+          roughness={0}
+        />
+      </mesh>
+      <Html
+        transform
+        position={[0, 0.5, 0.017]}
+        rotation={[-0.08, 0, 0]}
+        scale={0.041}
+        style={{ pointerEvents: "none", userSelect: "none" }}
+      >
+        <div
+          style={{
+            width: "408px",
+            height: "222px",
+            overflow: "hidden",
+            position: "relative",
+            background: "transparent",
+          }}
+        >
+          <div
+            className="term-scroll"
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: "5px 8px",
+              fontFamily: '"Courier New", Courier, monospace',
+              fontSize: "10.5px",
+              lineHeight: "1.58",
+            }}
+          >
+            {TERM_DOUBLED.map((line, i) => (
+              <div
+                key={i}
+                style={{
+                  color: line.startsWith("$")
+                    ? "#a3e635"
+                    : line.startsWith("PASS") || line.includes("✓")
+                      ? "#4ade80"
+                      : line.startsWith("GET") || line.startsWith("POST")
+                        ? "#94a3b8"
+                        : "#22d3ee",
+                  whiteSpace: "nowrap",
+                  opacity: 0.9,
+                }}
+              >
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Html>
+      {/* Cyan monitor glow */}
+      <pointLight
+        position={[0, 0.5, 0.55]}
+        color="#22d3ee"
+        intensity={1.0}
+        distance={2.4}
+        decay={2}
+      />
+    </group>
+  );
+}
+
+// ── Small potted plant ────────────────────────────────────────────────────────
+function Plant({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* Pot */}
+      <mesh>
+        <cylinderGeometry args={[0.06, 0.05, 0.1, 10]} />
+        <meshStandardMaterial color="#78350f" roughness={0.7} />
+      </mesh>
+      {/* Soil */}
+      <mesh position={[0, 0.052, 0]}>
+        <cylinderGeometry args={[0.058, 0.058, 0.01, 10]} />
+        <meshStandardMaterial color="#292524" roughness={0.9} />
+      </mesh>
+      {/* Leaves - 3 spheres */}
+      {(
+        [
+          [0, 0.18, 0, 0.1],
+          [-0.06, 0.13, 0.04, 0.07],
+          [0.07, 0.14, -0.03, 0.075],
+        ] as [number, number, number, number][]
+      ).map(([x, y, z, r], i) => (
+        <mesh key={i} position={[x, y, z]}>
+          <sphereGeometry args={[r, 8, 8]} />
+          <meshStandardMaterial color="#15803d" roughness={0.8} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ── Full scene ────────────────────────────────────────────────────────────────
+function Scene() {
+  return (
+    <>
+      <ambientLight intensity={1.1} color="#ffe4b0" />
+
+      {/* Main warm ceiling fill */}
+      <pointLight
+        position={[-0.5, 2.8, -0.5]}
+        color="#fde68a"
+        intensity={3.5}
+        distance={7}
+        decay={1.6}
+      />
+      {/* Wide overhead fill to reach dark corners */}
+      <pointLight
+        position={[1.0, 3.0, 0.8]}
+        color="#fff5d6"
+        intensity={2.2}
+        distance={7}
+        decay={1.6}
+      />
+      {/* Cool front fill for depth */}
+      <pointLight
+        position={[2.5, 2.2, 2.5]}
+        color="#c7d2fe"
+        intensity={0.7}
+        distance={7}
+        decay={2}
+      />
+
+      {/* Floor */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[7, 7]} />
+        <meshStandardMaterial color="#1e1c2a" roughness={0.88} />
+      </mesh>
+
+      {/* Back wall */}
+      <mesh position={[0, 1.6, -2.6]}>
+        <planeGeometry args={[7, 3.2]} />
+        <meshStandardMaterial
+          color="#252338"
+          roughness={0.88}
+          side={THREE.FrontSide}
+        />
+      </mesh>
+
+      {/* Left wall */}
+      <mesh position={[-2.6, 1.6, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[7, 3.2]} />
+        <meshStandardMaterial
+          color="#252338"
+          roughness={0.88}
+          side={THREE.FrontSide}
+        />
+      </mesh>
+
+      {/* Desk */}
+      <group position={[0.08, 0.76, -0.88]}>
+        <mesh>
+          <boxGeometry args={[1.75, 0.04, 0.82]} />
+          <meshStandardMaterial
+            color="#1c1c1e"
+            roughness={0.65}
+            metalness={0.12}
+          />
+        </mesh>
+        {(
+          [
+            [-0.8, -0.435, -0.36],
+            [0.8, -0.435, -0.36],
+            [-0.8, -0.435, 0.36],
+            [0.8, -0.435, 0.36],
+          ] as [number, number, number][]
+        ).map(([x, y, z], i) => (
+          <mesh key={i} position={[x, y, z]}>
+            <boxGeometry args={[0.045, 0.83, 0.045]} />
+            <meshStandardMaterial
+              color="#27272a"
+              metalness={0.7}
+              roughness={0.25}
+            />
+          </mesh>
+        ))}
+        {/* Keyboard */}
+        <mesh position={[0.12, 0.027, 0.2]}>
+          <boxGeometry args={[0.52, 0.015, 0.185]} />
+          <meshStandardMaterial
+            color="#18181b"
+            roughness={0.55}
+            metalness={0.3}
+          />
+        </mesh>
+        {/* Mouse */}
+        <mesh position={[0.55, 0.025, 0.18]}>
+          <boxGeometry args={[0.082, 0.018, 0.115]} />
+          <meshStandardMaterial
+            color="#27272a"
+            roughness={0.4}
+            metalness={0.4}
+          />
+        </mesh>
+        {/* Coffee mug */}
+        <mesh position={[-0.62, 0.074, 0.14]}>
+          <cylinderGeometry args={[0.04, 0.036, 0.095, 12]} />
+          <meshStandardMaterial color="#3f3f46" roughness={0.5} />
+        </mesh>
+        {/* Small book stack on desk */}
+        <mesh position={[0.68, 0.038, -0.12]}>
+          <boxGeometry args={[0.12, 0.022, 0.165]} />
+          <meshStandardMaterial color="#1d4ed8" roughness={0.6} />
+        </mesh>
+        <mesh position={[0.68, 0.062, -0.12]}>
+          <boxGeometry args={[0.115, 0.02, 0.16]} />
+          <meshStandardMaterial color="#b91c1c" roughness={0.6} />
+        </mesh>
+        {/* Desk lamp */}
+        <DeskLamp position={[0.7, 0.022, 0.05]} />
+        {/* Monitor */}
+        <Monitor position={[-0.08, 0.022, -0.18]} />
+        {/* Small plant on desk corner */}
+        <Plant position={[-0.74, 0.053, -0.2]} />
+      </group>
+
+      {/* Chair */}
+      <Chair position={[0.18, 0.472, 0.22]} />
+
+      {/* Fan */}
+      <Fan position={[1.12, 0, -1.88]} />
+
+      {/* Bookshelf on back wall (right side) */}
+      <Bookshelf position={[1.6, 0, -2.44]} />
+
+      {/* Warm strip lights at wall/floor join */}
+      <mesh position={[-2.58, 0.005, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[7, 0.008, 0.004]} />
+        <meshBasicMaterial color="#f59e0b" transparent opacity={0.25} />
+      </mesh>
+      <mesh position={[0, 0.005, -2.58]}>
+        <boxGeometry args={[7, 0.008, 0.004]} />
+        <meshBasicMaterial color="#f59e0b" transparent opacity={0.25} />
+      </mesh>
+
+      <OrbitControls
+        makeDefault
+        enablePan={false}
+        enableZoom={false}
+        minAzimuthAngle={-Math.PI / 3.2}
+        maxAzimuthAngle={Math.PI / 3.2}
+        minPolarAngle={Math.PI / 5.5}
+        maxPolarAngle={Math.PI / 2.15}
+        target={[0, 0.78, -0.52]}
+        dampingFactor={0.08}
+        enableDamping
+      />
+    </>
+  );
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────────
+export function HeroScene3D() {
+  return (
+    <div className="w-full h-full">
+      <Suspense
+        fallback={
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="font-mono text-xs text-zinc-700 animate-pulse">
+              loading scene...
+            </span>
+          </div>
+        }
+      >
+        <Canvas
+          camera={{ position: [3.1, 2.7, 3.7], fov: 45 }}
+          gl={{ antialias: true, alpha: true }}
+          dpr={[1, 1.5]}
+        >
+          <Scene />
+        </Canvas>
+      </Suspense>
     </div>
-  )
+  );
 }
